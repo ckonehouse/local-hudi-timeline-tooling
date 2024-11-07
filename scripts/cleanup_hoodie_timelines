@@ -1,0 +1,9 @@
+#!/bin/bash
+
+# Set the directory to search
+TIMELINES_DIR="timelines"
+
+# Find and delete all .hoodie directories
+sudo find "$TIMELINES_DIR" -type d -name ".hoodie" -exec chmod -R 666 {} \; -exec rm -rf {} \;
+
+echo "All .hoodie folders inside $TIMELINES_DIR have been made readable and writable, then deleted."

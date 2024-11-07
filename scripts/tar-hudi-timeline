@@ -1,0 +1,37 @@
+#!/bin/bash
+
+if [ "$#" -lt 2 ]; then
+    echo "Usage: $0 <s3_path> <table-name> <tar-file-name>"
+    exit 1
+fi
+
+# Assign command-line arguments to variables
+S3_PATH=$1
+TABLE_NAME=$2
+
+if [ -z "$3" ]; then
+    TAR_FILE_NAME="default-archive.tar.gz"
+else
+    TAR_FILE_NAME=$3
+fi
+
+
+LOCAL_DESTINATION="timelines"
+
+
+# Create a temporary directory
+TEMP_DIR=$(mktemp -d)
+
+# Sync the S3 directory to the temporary local directory
+aws s3 sync $S3_PATH/.hoodie $TEMP_DIR
+
+# Tar the directory
+tar -czf $TAR_FILE_NAME -C $TEMP_DIR .
+
+mkdir -p $LOCAL_DESTINATION/$TABLE_NAME
+
+mv $TAR_FILE_NAME $LOCAL_DESTINATION/$TABLE_NAME/
+# Clean up the temporary directory
+rm -rf $TEMP_DIR
+
+echo "Directory from S3 has been tarred and downloaded to $LOCAL_DESTINATION/$TAR_FILE_NAME"

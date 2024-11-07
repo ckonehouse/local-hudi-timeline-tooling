@@ -1,0 +1,46 @@
+#!/bin/bash
+
+# Function to install AWS CLI
+install_aws_cli() {
+  echo "Installing AWS CLI..."
+  
+  # Download the AWS CLI installation script for Linux
+  curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+  
+  # Unzip the installer
+  unzip awscliv2.zip
+  
+  # Install the AWS CLI
+  sudo ./aws/install
+  
+  # Clean up the installation files
+  rm -rf awscliv2.zip aws
+  
+  # Verify installation
+  if command -v aws &> /dev/null; then
+    echo "AWS CLI successfully installed."
+  else
+    echo "AWS CLI installation failed. Please install manually."
+    exit 1
+  fi
+}
+
+# Check if the AWS CLI is installed
+if ! command -v aws &> /dev/null; then
+  echo "AWS CLI is not installed."
+  install_aws_cli
+else
+  echo "AWS CLI is already installed."
+fi
+
+# Check if requirements.txt exists
+if [[ ! -f "requirements.txt" ]]; then
+  echo "requirements.txt not found!"
+  exit 1
+fi
+
+# Install packages from requirements.txt if not already installed
+echo "Checking and installing missing packages..."
+pip install -r requirements.txt --quiet --no-warn-script-location
+
+echo "All required packages are installed."

@@ -1,0 +1,164 @@
+#!/bin/bash
+
+BAR_WIDTH=50  # Width of the progress bar
+SPIN_CHARS="/-\|"  # Characters for a spinning animation
+
+# Function to display the progress bar
+show_progress() {
+    local i=0
+    while kill -0 "$CMD_PID" 2>/dev/null; do  # Check if the command is still running
+        # Calculate progress based on elapsed time
+        num_hashes=$((i * BAR_WIDTH / 100))
+        num_spaces=$((BAR_WIDTH - num_hashes))
+        
+        # Create the progress bar and spinning animation
+        bar=$(printf "%-${num_hashes}s" "#" | tr ' ' '#')
+        spaces=$(printf "%-${num_spaces}s" " ")
+        spin_char="${SPIN_CHARS:i%${#SPIN_CHARS}:1}"
+        
+        # Print the progress bar with spinning animation
+        printf "\r[%s%s] %s Extracting files..." "$bar" "$spaces" "$spin_char"
+        
+        # Update the progress
+        i=$(( (i + 2) % 100 ))  # Increment percentage (or customize)
+        sleep 0.1  # Adjust update interval
+    done
+}
+
+cleanup() {
+    kill $PROGRESS_PID 2>/dev/null
+    wait $PROGRESS_PID 2>/dev/null
+}
+
+
+######## SCRIPT LOGIC STARTS HERE ###########
+
+# Set the path to the timelines directory
+timelines_path="timelines"
+
+# Check if the timelines directory exists
+if [ ! -d "$timelines_path/" ]; then
+    echo "Error: $timelines_path directory does not exist."
+    exit 1
+fi
+
+# Initialize an empty array to store directory names
+timeline_directories=()
+
+# Loop through all items in the timelines directory
+for item in "$timelines_path"/*; do
+    # Check if the item is a directory
+    if [ -d "$item" ]; then
+        # Add the directory name to the array
+        timeline_directories+=("$(basename "$item")")
+    fi
+done
+
+
+
+
+
+# Print the list of timeline directories
+echo "Timeline directories:"
+printf '%s\n' "${timeline_directories[@]}"
+
+# Ask user about using Onehouse lakeview
+read -p "Do you want to use Onehouse lakeview? (y/n): " use_lakeview
+
+# Convert input to lowercase for easier comparison
+use_lakeview=${use_lakeview,,}
+
+if [ "$use_lakeview" = "y" ]; then
+    echo "Using Onehouse lakeview, uploading metadata to s3 and running extractor"
+
+    echo "Getting Onehouse AWS profile"
+
+    export AWS_PROFILE=prod_solution_demo_org_ajax_company
+    echo "Using AWS Profile: $AWS_PROFILE"
+
+    # Initialize an empty array to store S3 paths
+    s3_paths=()
+
+    # Loop through each timeline directory
+    for dir in "${timeline_directories[@]}"; do
+        # Find the tar.gz file in the directory
+        tar_file=$(find "$timelines_path/$dir" -name "*.tar.gz")
+        
+        if [ -n "$tar_file" ]; then
+            echo "\nUnpacking $tar_file in $timelines_path/$dir"
+            
+            mkdir "$timelines_path/$dir/.hoodie"
+            # Extract the tar.gz file in the same directory
+            tar -xzf "$tar_file" -C "$timelines_path/$dir/.hoodie" &
+
+            ################# CODE TO SHOW PROGRESS BAR #########################
+            CMD_PID=$!
+            show_progress &  # Run the progress bar in the background
+            PROGRESS_PID=$!  # Store its process ID
+            # Trap to ensure cleanup on exit
+            trap cleanup EXIT
+            wait $CMD_PID
+
+            ######################### END OF PROGRESS BAR ##############################
+
+            aws s3 sync "$timelines_path/$dir/.hoodie" s3://onehouse-customer-bucket-cb45fe9f/solutions-lakeview-metadata/timelines/$dir/.hoodie
+            # Add the S3 path to a list for later use
+            s3_paths+=("s3://onehouse-customer-bucket-cb45fe9f/solutions-lakeview-metadata/timelines/$dir/")
+        else
+            echo "No tar.gz file found in $timelines_path/$dir"
+        fi
+    done
+
+    echo "S3 paths:"
+    printf '%s\n' "${s3_paths[@]}"
+
+# Create a temporary file for the modified YAML
+temp_yaml=$(mktemp)
+
+# Read the original YAML file and update basePaths using yq
+yq eval ".metadataExtractorConfig.parserConfig[0].databases[0].basePaths = $(printf '%s\n' "${s3_paths[@]}" | jq -R . | jq -s .)" lakeview_conf.yaml > "$temp_yaml"
+
+# Move the temporary file to replace the original
+mv "$temp_yaml" lakeview_conf.yaml
+
+echo "Updated lakeview_conf.yaml with new basePaths"
+
+java -jar tmp/LakeView-release-v0.17.0-all.jar -p lakeview_conf.yaml 
+
+fi
+
+
+if [ "$use_lakeview" = "n" ]; then
+
+    for dir in "${timeline_directories[@]}"; do
+        # Find the tar.gz file in the directory
+        tar_file=$(find "$timelines_path/$dir" -name "*.tar.gz")
+        
+        if [ -n "$tar_file" ]; then
+            echo "Unpacking $tar_file in $timelines_path/$dir"
+            
+            mkdir "$timelines_path/$dir/.hoodie"
+            # Extract the tar.gz file in the same directory
+            tar -xzf "$tar_file" -C "$timelines_path/$dir/.hoodie" & 
+            
+            ################# CODE TO SHOW PROGRESS BAR #########################
+            CMD_PID=$!
+            show_progress &  # Run the progress bar in the background
+            PROGRESS_PID=$!  # Store its process ID
+            # Trap to ensure cleanup on exit
+            trap cleanup EXIT
+            wait $CMD_PID
+
+            ######################### END OF PROGRESS BAR ##############################
+    
+            echo -e "\n Finished unpacking $tar_file in $timelines_path/$dir"
+        else
+            echo "No tar.gz file found in $timelines_path/$dir"
+        fi
+    done
+
+
+    python3 timeline_utils.py
+fi
+
+
