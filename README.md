@@ -36,6 +36,10 @@ This will create a directory in the /timelines/ folder for each table, where the
 
 Once you have all of the tables that you want to analyze, we can proceed to running the analyzer tool, this has 2 methods of operation
 
+```bash
+./scripts/update-all-timelines
+```
+
 
 #### Onehouse Lakeview Upload
 
@@ -46,4 +50,15 @@ This will automatically upload your hoodie metadata to Onehouse lakeview, where 
 
 #### Local Analyzer
 
-The analyzer can also be run locally. To use this, please
+The analyzer can also be run locally. To use this, please select n for the question "Do you want to use Lakeview"
+
+This will then automatically unpack all the tarball files and begin sampling the hoodie metadata to provide a report of the data volumes as well as the update and insert % of the tables.
+
+
+#### Cleanup
+
+Since we have locally processed a significant # of .hoodie folders, we may want to clean up these resources after execution. In order to do this, we will want to run the cleanup utility. This will find all unpacked .hoodie folders and remove them, while still keeping their source tarballs. 
+
+```bash
+./scripts/cleanup_hoodie_timelines
+```
