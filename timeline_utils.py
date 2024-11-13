@@ -32,32 +32,31 @@ def calculate_aggregate_metrics(tables):
     
     for key, value in tables.items():
         table_stats = value.get("table_stats")
-        if value["table_type"] == COW and table_stats.get("update_percentage") == 0: #COW append
-            print(key, table_stats.get('updatePercentage'))
+        if value["table_type"] == COW and table_stats.get("updatePercentage") == 0: #COW append
+            
             aggregate_metrics[COW]['append_only']['num_tables'] += 1
             aggregate_metrics[COW]['append_only']['bytes_day'] += (table_stats['bytesWritten']/table_stats['numDays'])
             aggregate_metrics[COW]['append_only']['total_jobs_day'] += table_stats['numJobs']
             
-        elif (value["table_type"] == COW) and (table_stats.get("update_percentage") != 0.0): #COW mutable
-            print(key, table_stats)
+        elif (value["table_type"] == COW) and (table_stats.get("updatePercentage") != 0.0): #COW mutable
+    
             aggregate_metrics[COW]['mutable']['num_tables'] += 1
             aggregate_metrics[COW]['mutable']['bytes_day'] += (table_stats['bytesWritten']/table_stats['numDays'])
             aggregate_metrics[COW]['mutable']['total_jobs_day'] += table_stats['numJobs']
             aggregate_metrics[COW]['mutable']['total_update_perc'] += table_stats['updatePercentage']
             
-        elif (value['table_type'] == MOR) and (table_stats.get("update_percentage") == '0'): #MOR append
+        elif (value['table_type'] == MOR) and (table_stats.get("updatePercentage") == '0'): #MOR append
             
             aggregate_metrics[MOR]['append_only']['num_tables'] += 1
             aggregate_metrics[MOR]['append_only']['bytes_day'] += (table_stats['bytesWritten']/table_stats['numDays'])
             aggregate_metrics[MOR]['append_only']['total_jobs_day'] += table_stats['numJobs']
             
-        elif (value['table_type'] == MOR) and (table_stats.get("update_percentage") != '0'): #MOR mutable
+        elif (value['table_type'] == MOR) and (table_stats.get("updatePercentage") != '0'): #MOR mutable
             
             aggregate_metrics[MOR]['mutable']['num_tables'] += 1
             aggregate_metrics[MOR]['mutable']['bytes_day'] += (table_stats['bytesWritten']/table_stats['numDays'])
             aggregate_metrics[MOR]['mutable']['total_jobs_day'] += table_stats['numJobs']
-            aggregate_metrics[MOR]['mutable']['total_update_perc'] += table_stats['updatePercentage']#MOR mutable
-            
+            aggregate_metrics[MOR]['mutable']['total_update_perc'] += table_stats['updatePercentage']#MOR mutable    
     return aggregate_metrics
 
 
@@ -79,6 +78,9 @@ def convert_bytes(size_in_bytes):
 def get_commit_frequency(recent_commits, numDays):
     commitsPerDay = len(recent_commits)/numDays
     return commitsPerDay
+
+def list_days_of_commits(commits):
+    print(commits)
 
 timelines_path = Path("timelines")
 
@@ -145,7 +147,7 @@ if use_lakeview == "n":
 
 
 
-            if table_type == "COPY_ON_WRITE":
+            if table_type == COW:
                 # Find .commit files directly in the .hoodie directory 
                 commit_files = [
                     f for f in hoodie_dir.iterdir() 
@@ -166,18 +168,18 @@ if use_lakeview == "n":
                 for file in sorted_commit_files:
                     file_date = datetime.strptime(file.stem[:8], "%Y%m%d").date()
                     if file_date not in seen_dates:
-                        recent_commit_files.append(file)
                         seen_dates.add(file_date)
                     if len(seen_dates) == 7:  # Stop once we have 7 unique dates
                         break
+                    recent_commit_files.append(file)
                 
                 table_stats["numDays"] = len(seen_dates)
+                
                 if recent_commit_files:
                     print(f"Recent .commit files in {hoodie_dir}:")
                     
                     commit_frequency = get_commit_frequency(recent_commit_files, table_stats["numDays"])
                     table_stats["numJobs"] = commit_frequency
-
                     table_stats["bytesWritten"] = 0
 
                     for commit_file in recent_commit_files:
@@ -197,7 +199,7 @@ if use_lakeview == "n":
                 else:
                     print(f"No .commit files found in {hoodie_dir}")
             
-            elif table_type=="MERGE_ON_READ":
+            elif table_type==MOR:
                 deltacommit_files = [
                     f for f in hoodie_dir.iterdir() 
                     if f.is_file() and f.suffix == '.deltacommit' and re.match(r"\d{8}\d*\.deltacommit", f.name)
@@ -212,14 +214,14 @@ if use_lakeview == "n":
 # Select files from the 7 most recent unique dates
                 recent_deltacommit_files = []
                 seen_dates = set()
-
+                
                 for file in sorted_deltacommit_files:
                     file_date = datetime.strptime(file.stem[:8], "%Y%m%d").date()
                     if file_date not in seen_dates:
-                        recent_deltacommit_files.append(file)
                         seen_dates.add(file_date)
-                    if len(seen_dates) == 7:  # Stop once we have 7 unique dates
+                    if len(seen_dates) == 7:# Stop once we have 7 unique dates
                         break
+                    recent_deltacommit_files.append(file)
                 table_stats["numDays"] = len(seen_dates)
                 
                 if sorted_deltacommit_files:
@@ -239,13 +241,9 @@ if use_lakeview == "n":
                                     table_stats["updatePercentage"] = (table_stats["numUpdates"] + table_stats["numDeletes"])/(table_stats["numWrites"]+table_stats["numDeletes"])
                     
                     tables[dir_name]["table_stats"]= table_stats
-                    
-            
-                print(f"found the following deltacommit files: {recent_deltacommit_files}")
 
                 # Check if compaction is running
                 has_compaction = (any(file.endswith('compaction.inflight') for file in os.listdir(hoodie_dir))) & any(file.endswith('compaction.requested') for file in os.listdir(hoodie_dir)) & any(file.endswith('.commit') for file in os.listdir(hoodie_dir))
-                print(has_compaction)
                 if has_compaction:
                     table_stats["servicesEnabled"].append("compaction")
 
@@ -253,7 +251,7 @@ if use_lakeview == "n":
                 print(f"Directory {hoodie_dir} does not exist")
 
 aggregates = calculate_aggregate_metrics(tables)
-print(aggregates)
+
 table_data = []
 for key, value in tables.items():
     row = {
@@ -272,9 +270,22 @@ for key, value in tables.items():
     }
     table_data.append(row)
 
-#calculate totals for 
-
-print(tabulate(table_data, headers = "keys",tablefmt="grid"))
+totals = []
+for table_type, value in aggregates.items():
+    for workload in value.keys():
+        row = {}
+        row["Table Type"] = table_type
+        row["Workload"] = workload
+        row["Bytes Written / Day "] = convert_bytes(value[workload]['bytes_day'])
+        row["Avg Update Percentage"] = value[workload]['total_update_perc']/value[workload]['num_tables'] if value[workload]['num_tables']!=0 else value[workload]['total_update_perc']
+        row["Avg Num Ingestion Jobs / Day"] = value[workload]['total_jobs_day']/value[workload]['num_tables'] if value[workload]['num_tables']!=0 else value[workload]['total_update_perc']
+        totals.append(row)
+    
+aggregate_table = tabulate(totals, headers = "keys",tablefmt="grid")
+granular_table = tabulate(table_data, headers = "keys",tablefmt="grid")
 
 with open("analysis_table.txt","w") as file:
-    file.write(tabulate(table_data, headers = "keys",tablefmt="grid"))
+    file.write("Aggregate Data on Hudi Workloads\n")
+    file.write(aggregate_table)
+    file.write("\nTable by Table Breakdown\n")
+    file.write(granular_table)
