@@ -8,6 +8,59 @@ from datetime import datetime
 
 # Set the path to the timelines directory
 
+COW = "COPY_ON_WRITE"
+MOR = "MERGE_ON_READ"
+
+table_totals = {
+    "num_tables":0,
+    "bytes_day":0,
+    "total_update_perc":0,
+    "total_jobs_day": 0
+}
+def calculate_aggregate_metrics(tables):
+    
+    aggregate_metrics = {
+        COW:{
+            "mutable":table_totals.copy(),
+            "append_only":table_totals.copy()            
+        },
+        MOR:{
+            "mutable": table_totals.copy(),
+            "append_only": table_totals.copy()
+        }
+    }
+    
+    for key, value in tables.items():
+        table_stats = value.get("table_stats")
+        if value["table_type"] == COW and table_stats.get("update_percentage") == 0: #COW append
+            print(key, table_stats.get('updatePercentage'))
+            aggregate_metrics[COW]['append_only']['num_tables'] += 1
+            aggregate_metrics[COW]['append_only']['bytes_day'] += (table_stats['bytesWritten']/table_stats['numDays'])
+            aggregate_metrics[COW]['append_only']['total_jobs_day'] += table_stats['numJobs']
+            
+        elif (value["table_type"] == COW) and (table_stats.get("update_percentage") != 0.0): #COW mutable
+            print(key, table_stats)
+            aggregate_metrics[COW]['mutable']['num_tables'] += 1
+            aggregate_metrics[COW]['mutable']['bytes_day'] += (table_stats['bytesWritten']/table_stats['numDays'])
+            aggregate_metrics[COW]['mutable']['total_jobs_day'] += table_stats['numJobs']
+            aggregate_metrics[COW]['mutable']['total_update_perc'] += table_stats['updatePercentage']
+            
+        elif (value['table_type'] == MOR) and (table_stats.get("update_percentage") == '0'): #MOR append
+            
+            aggregate_metrics[MOR]['append_only']['num_tables'] += 1
+            aggregate_metrics[MOR]['append_only']['bytes_day'] += (table_stats['bytesWritten']/table_stats['numDays'])
+            aggregate_metrics[MOR]['append_only']['total_jobs_day'] += table_stats['numJobs']
+            
+        elif (value['table_type'] == MOR) and (table_stats.get("update_percentage") != '0'): #MOR mutable
+            
+            aggregate_metrics[MOR]['mutable']['num_tables'] += 1
+            aggregate_metrics[MOR]['mutable']['bytes_day'] += (table_stats['bytesWritten']/table_stats['numDays'])
+            aggregate_metrics[MOR]['mutable']['total_jobs_day'] += table_stats['numJobs']
+            aggregate_metrics[MOR]['mutable']['total_update_perc'] += table_stats['updatePercentage']#MOR mutable
+            
+    return aggregate_metrics
+
+
 def convert_bytes(size_in_bytes):
     # Define units
     units = ["Bytes", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"]
@@ -199,6 +252,8 @@ if use_lakeview == "n":
             else:
                 print(f"Directory {hoodie_dir} does not exist")
 
+aggregates = calculate_aggregate_metrics(tables)
+print(aggregates)
 table_data = []
 for key, value in tables.items():
     row = {

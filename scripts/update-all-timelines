@@ -135,23 +135,25 @@ if [ "$use_lakeview" = "n" ]; then
         tar_file=$(find "$timelines_path/$dir" -name "*.tar.gz")
         
         if [ -n "$tar_file" ]; then
-            echo "Unpacking $tar_file in $timelines_path/$dir"
-            
-            mkdir "$timelines_path/$dir/.hoodie"
-            # Extract the tar.gz file in the same directory
-            tar -xzf "$tar_file" -C "$timelines_path/$dir/.hoodie" & 
-            
-            ################# CODE TO SHOW PROGRESS BAR #########################
-            CMD_PID=$!
-            show_progress &  # Run the progress bar in the background
-            PROGRESS_PID=$!  # Store its process ID
-            # Trap to ensure cleanup on exit
-            trap cleanup EXIT
-            wait $CMD_PID
+            if [! -d "$directory_path/.hoodie" ]; then
+                echo "Unpacking $tar_file in $timelines_path/$dir"
+                
+                mkdir "$timelines_path/$dir/.hoodie"
+                # Extract the tar.gz file in the same directory
+                tar -xzf "$tar_file" -C "$timelines_path/$dir/.hoodie" & 
+                
+                ################# CODE TO SHOW PROGRESS BAR #########################
+                CMD_PID=$!
+                show_progress &  # Run the progress bar in the background
+                PROGRESS_PID=$!  # Store its process ID
+                # Trap to ensure cleanup on exit
+                trap cleanup EXIT
+                wait $CMD_PID
 
-            ######################### END OF PROGRESS BAR ##############################
-    
-            echo -e "\n Finished unpacking $tar_file in $timelines_path/$dir"
+                ######################### END OF PROGRESS BAR ##############################
+        
+                echo -e "\n Finished unpacking $tar_file in $timelines_path/$dir"
+            fi
         else
             echo "No tar.gz file found in $timelines_path/$dir"
         fi

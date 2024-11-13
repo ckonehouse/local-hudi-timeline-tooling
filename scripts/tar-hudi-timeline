@@ -1,5 +1,37 @@
 #!/bin/bash
 
+BAR_WIDTH=50  # Width of the progress bar
+SPIN_CHARS="/-\|"  # Characters for a spinning animation
+
+# Function to display the progress bar
+show_progress() {
+    local i=0
+    while kill -0 "$CMD_PID" 2>/dev/null; do  # Check if the command is still running
+        # Calculate progress based on elapsed time
+        num_hashes=$((i * BAR_WIDTH / 100))
+        num_spaces=$((BAR_WIDTH - num_hashes))
+        
+        # Create the progress bar and spinning animation
+        bar=$(printf "%-${num_hashes}s" "#" | tr ' ' '#')
+        spaces=$(printf "%-${num_spaces}s" " ")
+        spin_char="${SPIN_CHARS:i%${#SPIN_CHARS}:1}"
+        
+        # Print the progress bar with spinning animation
+        printf "\r[%s%s] %s Tarring files..." "$bar" "$spaces" "$spin_char"
+        
+        # Update the progress
+        i=$(( (i + 2) % 100 ))  # Increment percentage (or customize)
+        sleep 0.1  # Adjust update interval
+    done
+}
+
+cleanup() {
+    kill $PROGRESS_PID 2>/dev/null
+    wait $PROGRESS_PID 2>/dev/null
+}
+
+
+
 if [ "$#" -lt 2 ]; then
     echo "Usage: $0 <s3_path> <table-name> <tar-file-name>"
     exit 1
@@ -26,12 +58,22 @@ TEMP_DIR=$(mktemp -d)
 aws s3 sync $S3_PATH/.hoodie $TEMP_DIR
 
 # Tar the directory
-tar -czf $TAR_FILE_NAME -C $TEMP_DIR .
+tar -czf $TAR_FILE_NAME -C $TEMP_DIR . &
+
+################# CODE TO SHOW PROGRESS BAR #########################
+CMD_PID=$!
+show_progress &  # Run the progress bar in the background
+PROGRESS_PID=$!  # Store its process ID
+# Trap to ensure cleanup on exit
+trap cleanup EXIT
+wait $CMD_PID
+
+######################### END OF PROGRESS BAR ##############################
 
 mkdir -p $LOCAL_DESTINATION/$TABLE_NAME
 
 mv $TAR_FILE_NAME $LOCAL_DESTINATION/$TABLE_NAME/
 # Clean up the temporary directory
-rm -rf $TEMP_DIR
+trap 'rm -rf $TEMP_DIR' EXIT
 
-echo "Directory from S3 has been tarred and downloaded to $LOCAL_DESTINATION/$TAR_FILE_NAME"
+echo "Directory from S3 has been tarred and downloaded to $LOCAL_DESTINATION/$TABLE_NAME/$TAR_FILE_NAME"
