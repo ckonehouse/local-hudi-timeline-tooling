@@ -4,7 +4,7 @@ This tool provides an easy interface to access and analyze Hudi metadata without
 
 * **Hudi Timeline Extractor** - This tool grabs the Hudi timeline from the basepath (S3 folder) and creates a tarball which is stored locally in the file
 * **Timeline Analyzer** - This tool lets users analyze the Hudi metadata from the downloaded tarballs and has 2 built in utilities
-  * [Easy Lakeview Upload] - For users that are ok with Lakeview, but don't want the pain of configuration, this will allow easy access upload to Onehouse lakeview with a single command, dynamically creating all needed dependecies and configurations
+  * [Easy Lakeview Upload] - For users that are ok with Lakeview, but don't want the pain of configuration, this will allow easy access upload to Onehouse lakeview with a single command, dynamically creating all needed dependecies and configurations. However, this is just for quick testing - production deployments should use one of the deployment models specified in the Lakeview [docs](https://github.com/onehouseinc/LakeView).
   * [Local TCO Analyzer] - For users that don't want to (or are not able to) use Lakeview, this tool will analyze the .hoodie files and provide all of the inputs needed for the Onehouse cost calcualtor
 * **Cleanup Utility** - Cleans up all danging .hoodie folders locally and ensures that unnecessary files are removed after we are able to create the TCO inputs
 

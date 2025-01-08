@@ -71,15 +71,12 @@ use_lakeview=${use_lakeview,,}
 if [ "$use_lakeview" = "y" ]; then
     echo "Using Onehouse lakeview, uploading metadata to s3 and running extractor"
 
-    echo "Getting Onehouse AWS profile"
-
-    export AWS_PROFILE=prod_solution_demo_org_ajax_company
-    echo "Using AWS Profile: $AWS_PROFILE"
 
     # Initialize an empty array to store S3 paths
+    read -p "Provide an S3 folder for Onehouse to add your Lakeview credentials to: " s3_base
     s3_paths=()
 
-    # Loop through each timeline directory
+    
     for dir in "${timeline_directories[@]}"; do
         # Find the tar.gz file in the directory
         tar_file=$(find "$timelines_path/$dir" -name "*.tar.gz")
@@ -88,10 +85,10 @@ if [ "$use_lakeview" = "y" ]; then
             echo "\nUnpacking $tar_file in $timelines_path/$dir"
             
             mkdir "$timelines_path/$dir/.hoodie"
-            # Extract the tar.gz file in the same directory
+            Extract the tar.gz file in the same directory
             tar -xzf "$tar_file" -C "$timelines_path/$dir/.hoodie" &
 
-            ################# CODE TO SHOW PROGRESS BAR #########################
+            ################ CODE TO SHOW PROGRESS BAR #########################
             CMD_PID=$!
             show_progress &  # Run the progress bar in the background
             PROGRESS_PID=$!  # Store its process ID
@@ -99,11 +96,12 @@ if [ "$use_lakeview" = "y" ]; then
             trap cleanup EXIT
             wait $CMD_PID
 
-            ######################### END OF PROGRESS BAR ##############################
-
-            aws s3 sync "$timelines_path/$dir/.hoodie" s3://onehouse-customer-bucket-cb45fe9f/solutions-lakeview-metadata/timelines/$dir/.hoodie
+            ####################### END OF PROGRESS BAR ##############################
+            
+            s3_base_trimmed=${s3_base%/}
+            aws s3 sync "$timelines_path/$dir/.hoodie" $s3_base_trimmed/timelines/$dir/.hoodie
             # Add the S3 path to a list for later use
-            s3_paths+=("s3://onehouse-customer-bucket-cb45fe9f/solutions-lakeview-metadata/timelines/$dir/")
+            s3_paths+=("$s3_base_trimmed/$dir/")
         else
             echo "No tar.gz file found in $timelines_path/$dir"
         fi
@@ -112,18 +110,34 @@ if [ "$use_lakeview" = "y" ]; then
     echo "S3 paths:"
     printf '%s\n' "${s3_paths[@]}"
 
-# Create a temporary file for the modified YAML
-temp_yaml=$(mktemp)
+    echo "Set up Onehouse Lakeview creds"
 
-# Read the original YAML file and update basePaths using yq
-yq eval ".metadataExtractorConfig.parserConfig[0].databases[0].basePaths = $(printf '%s\n' "${s3_paths[@]}" | jq -R . | jq -s .)" lakeview_conf.yaml > "$temp_yaml"
 
-# Move the temporary file to replace the original
-mv "$temp_yaml" lakeview_conf.yaml
 
-echo "Updated lakeview_conf.yaml with new basePaths"
+    # Create a temporary file for the modified YAML
+    read -p "Enter your Onehouse project Id: " projectId
+    read -p "Enter your Onehouse user Id: " userId
+    read -p "Enter your Onehouse API Key: " api_key
+    read -s -p "Enter your Secret Key: " secret_key
 
-java -jar tmp/LakeView-release-v0.17.0-all.jar -p lakeview_conf.yaml 
+    # Update the YAML file directly with new values
+    # Convert array to comma-separated string with quotes around each path
+    s3_paths_str=$(printf '"%s",' "${s3_paths[@]}" | sed 's/,$//')
+
+    echo $s3_paths_str
+
+    # Use yq to update the basePaths array with the formatted paths
+    yq eval ".metadataExtractorConfig.parserConfig[0].databases[0].basePaths = [$s3_paths_str]" -i lakeview/lakeview_conf.yaml
+    yq eval ".onehouseClientConfig.projectId = \"$projectId\"" -i lakeview/lakeview_conf.yaml
+    yq eval ".onehouseClientConfig.userId = \"$userId\"" -i lakeview/lakeview_conf.yaml
+    yq eval ".onehouseClientConfig.apiKey = \"$api_key\"" -i lakeview/lakeview_conf.yaml
+    yq eval ".onehouseClientConfig.apiSecret = \"$secret_key\"" -i lakeview/lakeview_conf.yaml
+
+    # Move the temporary file to replace the original
+
+    echo "Updated lakeview_conf.yaml with new basePaths"
+
+    java -jar lakeview/LakeView-release-v0.17.0-all.jar -p lakeview/lakeview_conf.yaml 
 
 fi
 

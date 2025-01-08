@@ -1,0 +1,20 @@
+version: V1
+onehouseClientConfig:
+  projectId: 0092d193-b29a-4654-97e4-f436fb547308
+  apiKey: yAA0hl7d7K8gsLKC251PpA==
+  apiSecret: 8u85+n9P10KGb99RyQs0ft20pJTDXtEIZvjA+rkaHrs=
+  userId: M9iSD9b1McguzAJHbifeOd8xCUn1
+  #file: lakeview_conf.yaml
+fileSystemConfiguration:
+  s3Config:
+    region: us-west-2
+metadataExtractorConfig:
+  jobRunMode: ONCE
+  uploadStrategy: CONTINUE_ON_INCOMPLETE_COMMIT
+  pathExclusionPatterns: []
+  parserConfig:
+    - lake: tableAnalyzerLake
+      databases:
+        - name: tableAnalyzer
+          basePaths: ['s3://test-exsiting-ingest/test-lakeview/timelines/hudi_cow_demo/', 's3://test-exsiting-ingest/test-lakeview/timelines/optimized_inventory_counts/', 's3://test-exsiting-ingest/test-lakeview/timelines/optimized_inventory_transactions/', 's3://test-exsiting-ingest/test-lakeview/timelines/retail_item_master/', 's3://test-exsiting-ingest/test-lakeview/timelines/retail_scans/']
+          # Add additional lakes and databases as needed
