@@ -1,9 +1,9 @@
 version: V1
 onehouseClientConfig:
-  projectId: 0092d193-b29a-4654-97e4-f436fb547308
-  apiKey: yAA0hl7d7K8gsLKC251PpA==
-  apiSecret: 8u85+n9P10KGb99RyQs0ft20pJTDXtEIZvjA+rkaHrs=
-  userId: M9iSD9b1McguzAJHbifeOd8xCUn1
+  projectId: 
+  apiKey: 
+  apiSecret: 
+  userId: 
   #file: lakeview_conf.yaml
 fileSystemConfiguration:
   s3Config:
