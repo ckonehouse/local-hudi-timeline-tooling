@@ -33,13 +33,15 @@ cleanup() {
 
 
 if [ "$#" -lt 2 ]; then
-    echo "Usage: $0 <s3_path> <table-name> <tar-file-name>"
+    echo "Usage: $0 <s3_base_path> <table-name> <tar-file-name>"
     exit 1
 fi
 
 # Assign command-line arguments to variables
 S3_PATH=$1
 TABLE_NAME=$2
+
+echo "S3_PATH: $S3_PATH"
 
 if [ -z "$3" ]; then
     TAR_FILE_NAME="default-archive.tar.gz"
@@ -55,7 +57,7 @@ LOCAL_DESTINATION="timelines"
 TEMP_DIR=$(mktemp -d)
 
 # Sync the S3 directory to the temporary local directory
-aws s3 sync $S3_PATH/.hoodie $TEMP_DIR
+aws s3 sync $S3_PATH/$TABLE_NAME/.hoodie $TEMP_DIR
 
 # Tar the directory
 tar -czf $TAR_FILE_NAME -C $TEMP_DIR . &
